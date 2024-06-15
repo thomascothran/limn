@@ -1,6 +1,6 @@
-(ns tech.thomascothran.nexus
-  (:require [tech.thomascothran.nexus.ports :as ports]
-            [tech.thomascothran.nexus.adapters]))
+(ns tech.thomascothran.limn
+  (:require [tech.thomascothran.limn.ports :as ports]
+            [tech.thomascothran.limn.adapters]))
 
 (defn make-workflow
   [workflow-spec]

@@ -1,4 +1,4 @@
-# nexus.clj: Artifact-Oriented Business Process Modeling
+# limn.clj: Artifact-Oriented Business Process Modeling
 
 Model business processes the Clojure way:
 

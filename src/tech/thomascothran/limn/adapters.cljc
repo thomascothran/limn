@@ -1,6 +1,6 @@
-(ns tech.thomascothran.nexus.adapters
+(ns tech.thomascothran.limn.adapters
   (:require [clojure.set :as set]
-            [tech.thomascothran.nexus.ports
+            [tech.thomascothran.limn.ports
              :as ports]))
 
 (defn- tag
@@ -9,11 +9,11 @@
 
 (defn- tag-workflow
   [workflow]
-  (tag workflow :nexus/workflow))
+  (tag workflow :limn/workflow))
 
 (defn- tag-action
   [action]
-  (tag action :nexus/action))
+  (tag action :limn/action))
 
 (defn tag-actions
   [actions]
@@ -24,7 +24,7 @@
 
 (defn tag-facts
   [facts]
-  (tag facts :nexus/fact-set))
+  (tag facts :limn/fact-set))
 
 (defmethod ports/make-facts
   :default
@@ -33,29 +33,29 @@
   (tag-facts facts))
 
 (defmethod ports/add-facts
-  [:nexus/workflow :nexus/fact-set]
+  [:limn/workflow :limn/fact-set]
   [workflow facts]
-  (assoc workflow :nexus/facts facts))
+  (assoc workflow :limn/facts facts))
 
 (defmethod ports/facts
-  :nexus/workflow
+  :limn/workflow
   [workflow]
-  (:nexus/facts workflow))
+  (:limn/facts workflow))
 
 (defmethod ports/requires
-  [:nexus/workflow :action]
+  [:limn/workflow :action]
   [workflow _ id]
   (-> (ports/action workflow id)
-      (get :nexus.action/requires #{})))
+      (get :limn.action/requires #{})))
 
 (defmethod ports/produces
-  [:nexus/workflow :action]
+  [:limn/workflow :action]
   [workflow _ id]
   (-> (ports/action workflow id)
-      (get :nexus.action/produces #{})))
+      (get :limn.action/produces #{})))
 
 (defmethod ports/complete?
-  [:nexus/workflow :action]
+  [:limn/workflow :action]
   [workflow _type action-id]
   (let [required-facts (ports/produces workflow :action action-id)
         facts (ports/facts workflow)]
@@ -66,34 +66,34 @@
   [workflow]
   (-> workflow
       (tag-workflow)
-      (update :nexus.workflow/actions tag-actions)))
+      (update :limn.workflow/actions tag-actions)))
 
 (defmethod ports/action
-  :nexus/workflow
+  :limn/workflow
   [workflow action-id]
-  (get-in workflow [:nexus.workflow/actions action-id]))
+  (get-in workflow [:limn.workflow/actions action-id]))
 
 (defmethod ports/actions
   :default
   [workflow]
-  (:nexus.workflow/actions workflow))
+  (:limn.workflow/actions workflow))
 
 (defmethod ports/complete
-  [:nexus/workflow :actions]
+  [:limn/workflow :actions]
   [workflow _]
   (into #{}
         (filter #(ports/complete? workflow :action %))
         (keys (ports/actions workflow))))
 
 (defmethod ports/incomplete
-  [:nexus/workflow :actions]
+  [:limn/workflow :actions]
   [workflow _]
   (into #{}
         (remove #(ports/complete? workflow :action %))
         (keys (ports/actions workflow))))
 
 (defmethod ports/ready
-  [:nexus/workflow :actions]
+  [:limn/workflow :actions]
   [workflow _]
   (let [facts (ports/facts workflow)
         actions (ports/actions workflow)

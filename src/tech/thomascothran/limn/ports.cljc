@@ -1,4 +1,4 @@
-(ns tech.thomascothran.nexus.ports)
+(ns tech.thomascothran.limn.ports)
 
 (defmulti make-workflow
   "Create a workflow"
