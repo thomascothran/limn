@@ -92,3 +92,19 @@
         (remove #(ports/complete? workflow :action %))
         (keys (ports/actions workflow))))
 
+(defmethod ports/ready
+  [:nexus/workflow :actions]
+  [workflow _]
+  (let [facts (ports/facts workflow)
+        actions (ports/actions workflow)
+        requirements #(ports/requires workflow :action %)
+        incomplete-actions (ports/incomplete workflow :actions)]
+    (into #{}
+          (comp (filter (fn [[action-id _action]]
+                          (set/subset? (requirements action-id)
+                                       facts)))
+                (filter (comp incomplete-actions first))
+                (map first))
+          actions)))
+
+

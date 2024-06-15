@@ -46,6 +46,10 @@
   [workflow xtype xid]
   (ports/produces workflow xtype xid))
 
+(defn ready
+  [workflow xtype]
+  (ports/ready workflow xtype))
+
 (defn dependencies
   [workflow xtype xid]
   (throw (Exception. "TODO")))

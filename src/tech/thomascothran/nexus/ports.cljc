@@ -42,3 +42,7 @@
 (defmulti incomplete
   (fn [workflow xtype]
     [(type workflow) xtype]))
+
+(defmulti ready
+  (fn [workflow xtype]
+    [(type workflow) xtype]))
