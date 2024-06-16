@@ -89,22 +89,50 @@
   [:limn/workflow :actions]
   [workflow _]
   (into #{}
-        (remove #(ports/complete? workflow :action %))
-        (keys (ports/actions workflow))))
+        (comp (remove #(and (not (get (second %)
+                                      :limn.action/repeatable))
+                            (ports/complete? workflow :action (first %))))
+              (map first))
+        (ports/actions workflow)))
 
-(defmethod ports/ready
-  [:limn/workflow :actions]
-  [workflow _]
+(defn- action-ready?
+  [facts requirements]
+  (let [facts' (into #{} facts)
+
+        positive-requirements
+        (into #{} (filter keyword) requirements)
+
+        negative-requirements
+        (into #{} (comp (filter #(and (vector? %) (= :not (first %))))
+                        (map second))
+              requirements)
+        positive-is-subset? (set/subset? positive-requirements facts')]
+    (and positive-is-subset?
+         (= #{}
+            (set/intersection negative-requirements facts')))))
+
+(comment
+  (action-ready? #{:a :b :c} #{:a :b :c})
+  (action-ready? #{:a :b} #{:a :b :c})
+  (action-ready? #{:a :b} #{:a [:not :b]})
+  (action-ready? nil #{[:not :a]}))
+
+(defn- ready
+  [workflow]
   (let [facts (ports/facts workflow)
         actions (ports/actions workflow)
         requirements #(ports/requires workflow :action %)
         incomplete-actions (ports/incomplete workflow :actions)]
     (into #{}
           (comp (filter (fn [[action-id _action]]
-                          (set/subset? (requirements action-id)
-                                       facts)))
+                          (action-ready? facts (requirements action-id))))
                 (filter (comp incomplete-actions first))
                 (map first))
           actions)))
+
+(defmethod ports/ready
+  [:limn/workflow :actions]
+  [workflow _]
+  (ready workflow))
 
 

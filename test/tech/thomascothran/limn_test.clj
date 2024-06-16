@@ -1,5 +1,5 @@
 (ns tech.thomascothran.limn-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is]]
             [tech.thomascothran.limn :as lm]))
 
 (def ^:unit mow-lawn-spec
@@ -93,4 +93,50 @@
              (lm/add-facts (lm/make-facts #{:mower/fueled
                                             :worker/prepared}))
              (lm/ready :actions)))))
+
+;; Negative conditions
+
+(def negative-conditions-spec
+  {:limn.workflow/name "Negative conditions"
+   :limn.workflow/actions
+   {:step-a {:limn.action/requires #{}
+             :limn.action/produces #{:a}}
+    :step-b {:limn.action/requires #{[:not :a]}
+             :limn.action/produces #{:b}}}})
+
+(deftest negative-conditions
+  (is (= #{}
+         (-> negative-conditions-spec
+             lm/make-workflow
+             (lm/complete :actions))))
+
+  (is (= #{:step-a :step-b}
+         (-> negative-conditions-spec
+             lm/make-workflow
+             (lm/incomplete :actions))))
+
+  (is (= #{:step-a :step-b}
+         (-> negative-conditions-spec
+             lm/make-workflow
+             (lm/ready :actions)))))
+
+;; Repeatable actions
+
+(def repeating-actions-spec
+  {:limn.workflow/name "Repeating actions"
+   :limn.workflow/actions
+   {:step-a {:limn.action/requires #{}
+             :limn.action/produces #{:a}}
+    :step-b {:limn.action/requires #{:a}
+             :limn.action/produces #{:b}
+             :limn.action/repeatable true}
+    :step-c {:limn.action/requires #{:a}
+             :limn.action/produces #{}
+             :limn.action/repeatable true}}})
+
+(deftest repeatable-actions
+  (is (= #{:step-a :step-b :step-c}
+         (-> repeating-actions-spec
+             lm/make-workflow
+             (lm/incomplete :actions)))))
 
