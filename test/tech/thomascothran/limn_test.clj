@@ -38,7 +38,15 @@
 
 (deftest make-facts
   (is (= :limn/fact-set
-         (type (lm/make-facts #{:a :b :c})))))
+         (type (lm/make-facts #{:a :b :c}))))
+
+  (is (= :limn/fact-map
+         (type (lm/make-facts {:a 1}))))
+
+  (is (= :limn/fact-map
+         (type (->> (zipmap (range 1 100)
+                            (range 1 100))
+                    (lm/make-facts))))))
 
 (deftest find-facts
   (is (= #{:mower/fueled}

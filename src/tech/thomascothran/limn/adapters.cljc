@@ -22,15 +22,30 @@
              {}
              actions))
 
-(defn tag-facts
-  [facts]
-  (tag facts :limn/fact-set))
+(defn- make-fact-map
+  [m]
+  (-> (reduce-kv (fn [m k v]
+                   (if (nil? v)
+                     m
+                     (assoc m k v)))
+                 ^{:type :limn/fact-map} {}
+                 m)
+      (tag :limn/fact-map)))
 
-(defmethod ports/make-facts
-  :default
-  [facts]
-  (assert (set? facts))
-  (tag-facts facts))
+#?(:clj (defmethod ports/make-facts
+          clojure.lang.PersistentHashMap
+          [facts]
+          (make-fact-map facts)))
+
+#?(:clj (defmethod ports/make-facts
+          clojure.lang.PersistentArrayMap
+          [facts]
+          (make-fact-map facts)))
+
+#?(:cljs (defmethod ports/make-facts
+           PersistentArrayMap
+           [facts]
+           (make-fact-map facts)))
 
 (defmethod ports/add-facts
   [:limn/workflow :limn/fact-set]
