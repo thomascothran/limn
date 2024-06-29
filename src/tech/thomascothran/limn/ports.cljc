@@ -5,9 +5,6 @@
   (fn [workflow-spec & _]
     (type workflow-spec)))
 
-(defmulti make-facts
-  (fn [facts] (type facts)))
-
 (defmulti add-facts
   (fn [workflow facts]
     [(type workflow) (type facts)]))

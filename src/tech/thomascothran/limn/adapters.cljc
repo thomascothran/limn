@@ -3,105 +3,92 @@
             [tech.thomascothran.limn.ports
              :as ports]))
 
-(defn- tag
-  [x tag]
-  (vary-meta x assoc :type tag))
+#?(:clj (do (derive clojure.lang.PersistentArrayMap :clojure/map)
+            (derive clojure.lang.PersistentHashMap :clojure/map))
+   :cljs (do (derive PersistentArrayMap :clojure/map)
+             (derive PersistentHashMap :clojure/map)))
 
-(defn- tag-workflow
-  [workflow]
-  (tag workflow :limn/workflow))
-
-(defn- tag-action
-  [action]
-  (tag action :limn/action))
-
-(defn tag-actions
-  [actions]
-  (reduce-kv (fn [m k v]
-               (assoc m k (tag-action v)))
-             {}
-             actions))
-
-(defn- make-fact-map
-  [m]
-  (-> (reduce-kv (fn [m k v]
-                   (if (nil? v)
-                     m
-                     (assoc m k v)))
-                 ^{:type :limn/fact-map} {}
-                 m)
-      (tag :limn/fact-map)))
-
-#?(:clj (defmethod ports/make-facts
-          clojure.lang.PersistentHashMap
-          [facts]
-          (make-fact-map facts)))
-
-#?(:clj (defmethod ports/make-facts
-          clojure.lang.PersistentArrayMap
-          [facts]
-          (make-fact-map facts)))
-
-#?(:cljs (defmethod ports/make-facts
-           PersistentArrayMap
-           [facts]
-           (make-fact-map facts)))
+#?(:clj (derive clojure.lang.PersistentHashSet :clojure/set)
+   :cljs (derive PersistentHashSet :clojure/set))
 
 (defmethod ports/add-facts
-  [:limn/workflow :limn/fact-set]
+  [:clojure/map :clojure/map]
   [workflow facts]
-  (assoc workflow :limn/facts facts))
+  (assoc workflow :workflow/facts facts))
+
+(defmethod ports/add-facts
+  [:clojure/map :clojure/set]
+  [workflow facts]
+  (assoc workflow :workflow/facts facts))
 
 (defmethod ports/facts
-  :limn/workflow
+  :clojure/map
   [workflow]
-  (:limn/facts workflow))
+  (:workflow/facts workflow))
 
 (defmethod ports/requires
-  [:limn/workflow :action]
+  [:clojure/map :action]
   [workflow _ id]
   (-> (ports/action workflow id)
-      (get :limn.action/requires #{})))
+      (get :action/requires #{})))
 
 (defmethod ports/produces
-  [:limn/workflow :action]
+  [:clojure/map :action]
   [workflow _ id]
   (-> (ports/action workflow id)
-      (get :limn.action/produces #{})))
+      (get :action/produces #{})))
 
 (defmethod ports/complete?
-  [:limn/workflow :action]
+  [:clojure/map :action]
   [workflow _type action-id]
-  (let [required-facts (ports/produces workflow :action action-id)
-        facts (ports/facts workflow)]
-    (set/subset? required-facts facts)))
+  (let [produces
+        (ports/produces workflow :action action-id)
+
+        {repeatable? :action/repeatable}
+        (ports/action workflow action-id)
+
+        required-products
+        (into #{} (filter keyword?) produces)
+
+        excluded-facts
+        (into #{}
+              (comp (filter #(and (vector? %)
+                                  (= :not
+                                     (first %))))
+                    (map second))
+              produces)
+        facts (or (ports/facts workflow)
+                  #{})]
+
+    (if repeatable?
+      false
+      (and (set/subset? required-products facts)
+           (= #{} (set/intersection  excluded-facts facts))))))
 
 (defmethod ports/make-workflow
-  :default
+  :clojure/map
   [workflow]
-  (-> workflow
-      (tag-workflow)
-      (update :limn.workflow/actions tag-actions)))
+  workflow)
 
 (defmethod ports/action
-  :limn/workflow
+  :clojure/map
   [workflow action-id]
-  (get-in workflow [:limn.workflow/actions action-id]))
+  (get-in workflow [:workflow/actions action-id]))
 
 (defmethod ports/actions
-  :default
+  :clojure/map
   [workflow]
-  (:limn.workflow/actions workflow))
+  (:workflow/actions workflow))
 
 (defmethod ports/complete
-  [:limn/workflow :actions]
+  [:clojure/map :actions]
   [workflow _]
   (into #{}
         (filter #(ports/complete? workflow :action %))
         (keys (ports/actions workflow))))
 
 (defmethod ports/incomplete
-  [:limn/workflow :actions]
+  [:clojure/map :actions]
   [workflow _]
   (into #{}
         (comp (remove #(and (not (get (second %)
@@ -126,12 +113,6 @@
          (= #{}
             (set/intersection negative-requirements facts')))))
 
-(comment
-  (action-ready? #{:a :b :c} #{:a :b :c})
-  (action-ready? #{:a :b} #{:a :b :c})
-  (action-ready? #{:a :b} #{:a [:not :b]})
-  (action-ready? nil #{[:not :a]}))
-
 (defn- ready
   [workflow]
   (let [facts (ports/facts workflow)
@@ -146,8 +127,8 @@
           actions)))
 
 (defmethod ports/ready
-  [:limn/workflow :actions]
-  [workflow _]
+  [:clojure/map :actions]
+  [workflow _actions]
   (ready workflow))
 
 

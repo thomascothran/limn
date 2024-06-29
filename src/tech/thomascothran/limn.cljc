@@ -6,10 +6,6 @@
   [workflow-spec]
   (ports/make-workflow workflow-spec))
 
-(defn make-facts
-  [facts]
-  (ports/make-facts facts))
-
 (defn add-facts
   [workflow facts]
   (ports/add-facts workflow facts))
