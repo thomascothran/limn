@@ -90,6 +90,6 @@ Identifying dependencies between actions is crucial for managing workflows effec
 
 ## License
 
-Copyright © 2024 Default
+Copyright © 2024 Thomas Cothran
 
 Distributed under the Eclipse Public License version 1.0.
