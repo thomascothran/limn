@@ -1,5 +1,7 @@
 # limn.clj: Artifact-Oriented Business Process Modeling
 
+![limn image](./doc/resources/limn.webp)
+
 Define you who can do what, when, and why in the context of a business process using data:
 
 ```clojure
