@@ -1,6 +1,33 @@
 # limn.clj: Artifact-Oriented Business Process Modeling
 
-Limn tells you who can do what, when, and why in the context of a business process.
+Define you who can do what, when, and why in the context of a business process using data:
+
+```clojure
+(def mow-lawn-spec
+  {:workflow/name "Mow the lawn"
+   :workflow/actions
+   {:get-gas
+    {:action/requires #{}
+     :action/produces #{:mower/fueled}}
+
+    :stop-running
+    {:action/requires #{:mower/fueled
+                        :mower/running}
+     :action/produces #{[:not :mower/fueled]
+                        [:not :mower/running]}}
+
+    :start-mower
+    {:action/requires #{:mower/fueled}
+     :action/produces #{:mower/running}}
+
+    :don-safety-glasses {:action/produces #{:worker/prepared}}
+
+    :cut-grass
+    {:action/requires #{:mower/running
+                        :worker/prepared}
+     :action/produces #{:grass/cut}}}})
+
+```
 
 ## Purpose
 
@@ -51,6 +78,11 @@ Limn adopts artifact-centric business process modeling for several reasons:
 ### Dependencies and Blocking Actions
 
 Identifying dependencies between actions is crucial for managing workflows effectively. In complex workflows, multiple paths may exist from start to finish. Limn provides the capability to programmatically identify blockers, helping to resolve issues that cause workflows to stall. Understanding these dependencies allows for smoother progression and better management of business processes.
+
+## Prior Art
+
+- Dativity
+- Titanaboa
 
 ## License
 

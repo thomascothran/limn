@@ -3,7 +3,7 @@
             [tech.thomascothran.limn.adapters]
             [tech.thomascothran.limn :as lm]))
 
-(def ^:unit mow-lawn-spec
+(def mow-lawn-spec
   {:workflow/name "Mow the lawn"
    :workflow/actions
    {:get-gas
