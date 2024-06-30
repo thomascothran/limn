@@ -46,6 +46,10 @@
   [workflow xtype]
   (ports/ready workflow xtype))
 
+(defn authorized-actions
+  [workflow actor]
+  (ports/authorized-actions workflow actor))
+
 (defn dependencies
   [workflow xtype xid]
   (throw (Exception. "TODO")))
@@ -53,3 +57,4 @@
 (defn blockers
   [workflow action-id]
   (throw (Exception. "TODO")))
+
