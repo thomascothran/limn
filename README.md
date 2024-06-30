@@ -1,4 +1,6 @@
-# limn.clj: Artifact-Oriented Business Process Modeling
+# Limn: Artifact-Oriented Business Process Modeling
+
+Model your business rules in Clojure(Script)
 
 ![limn image](./doc/resources/limn.webp)
 
