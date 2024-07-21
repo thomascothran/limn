@@ -1,6 +1,7 @@
 (ns tech.thomascothran.limn
   (:require [tech.thomascothran.limn.ports :as ports]
-            [tech.thomascothran.limn.adapters]))
+            [tech.thomascothran.limn.adapters]
+            [tech.thomascothran.limn.graph :as g]))
 
 (defn make-workflow
   [workflow-spec]
@@ -50,11 +51,29 @@
   [workflow actor]
   (ports/authorized-actions workflow actor))
 
-(defn dependencies
-  [workflow xtype xid]
-  (throw (Exception. "TODO")))
-
 (defn blockers
   [workflow action-id]
-  (throw (Exception. "TODO")))
+  (let [action-graph
+        (or (workflow :action-depenedencies/graph)
+            (g/action-graph workflow))
+        ready-actions (ready workflow :actions)
+        get-parents #(get action-graph %)]
+    (loop [parents (get-parents action-id)
+           blockers #{}]
+      (if (empty? parents)
+        blockers
+        (let [new-blockers
+              (into blockers
+                    (comp
+                     (filter ready-actions)
+                     (remove blockers))
+                    parents)
+
+              grandparents
+              (->> parents
+                   (mapcat get-parents)
+                   (into #{}))]
+          (recur grandparents new-blockers))))))
+
+
 

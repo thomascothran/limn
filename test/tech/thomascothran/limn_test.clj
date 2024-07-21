@@ -137,3 +137,29 @@
              lm/make-workflow
              (lm/incomplete :actions)))))
 
+;; Blockers
+
+(def blocker-spec
+  {:workflow/actions
+   {:blocker-a {:action/requires #{}
+                :action/produces #{:a}}
+    :blocker-b {:action/requires #{}
+                :action/produces #{:z}}
+    :non-blocker {:action/requires #{}
+                  :action/produces #{:m}}
+    :dangler     {:action/requires #{:x}
+                  :action/produces #{:xy}}
+    :intermediate {:action/requires #{:a}
+                   :action/produces #{:b}}
+    :leaf {:action/requires #{:b :z}
+           :action/produces #{:c}}}})
+
+(deftest test-blockers
+  (let [workflow (lm/make-workflow blocker-spec)]
+    (is (= #{}
+           (lm/blockers workflow :blocker-a)
+           (lm/blockers workflow :dangler)))
+    (is (= #{:blocker-a}
+           (lm/blockers workflow :intermediate)))
+    (is (= #{:blocker-a :blocker-b}
+           (lm/blockers workflow :leaf)))))
