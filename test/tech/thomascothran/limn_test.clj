@@ -1,7 +1,8 @@
 (ns tech.thomascothran.limn-test
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.test :refer [deftest is testing]]
             [tech.thomascothran.limn.adapters]
-            [tech.thomascothran.limn :as lm]))
+            [tech.thomascothran.limn :as lm]
+            [tech.thomascothran.limn.graph :as g]))
 
 (def mow-lawn-spec
   {:workflow/name "Mow the lawn"
@@ -155,11 +156,328 @@
            :action/produces #{:c}}}})
 
 (deftest test-blockers
+  (testing "Whether direct parents are identified as blockers"
+    (let [workflow (lm/make-workflow blocker-spec)]
+      (is (= #{}
+             (lm/blockers workflow :blocker-a)
+             (lm/blockers workflow :dangler)))
+      (is (= #{:blocker-a}
+             (lm/blockers workflow :intermediate)))))
+  (testing "Whether grandparents are identified as blockers"
+    (let [workflow (lm/make-workflow blocker-spec)]
+      (is (= #{:blocker-a :blocker-b}
+             (lm/blockers workflow :leaf))))))
+
+(deftest test-workflow-blockers
   (let [workflow (lm/make-workflow blocker-spec)]
-    (is (= #{}
-           (lm/blockers workflow :blocker-a)
-           (lm/blockers workflow :dangler)))
-    (is (= #{:blocker-a}
-           (lm/blockers workflow :intermediate)))
-    (is (= #{:blocker-a :blocker-b}
-           (lm/blockers workflow :leaf)))))
+    (is (= {:blocker-b #{},
+            :blocker-a #{},
+            :non-blocker #{},
+            :intermediate #{:blocker-a},
+            :dangler #{},
+            :leaf #{:blocker-b :blocker-a}})
+        (time (lm/blockers workflow)))))
+
+(def complicated-blockers
+  {:workflow/actions
+   #:action{:redo-after-release
+            #:action{:requires
+                     #{:foo/granted
+                       [:not
+                        :foo/release-is-terminal]},
+                     :produces
+                     #{[:not :foo/granted]
+                       [:not
+                        :foo/pending-release]
+                       :foo/pending-redo}}
+            :grant-assigned-foo
+            #:action{:requires
+                     #{:foo/assigned
+                       [:not :bar/stop]
+                       :foo/id
+                       [:not :foo/stop]},
+                     :produces #{:foo/granted},
+                     :personas
+                     #{:persona/foo-manager
+                       :persona/supervisor}},
+            :create-foo
+            #:action{:requires #{},
+                     :produces
+                     #{:foo/official-id
+                       :foo/id}}
+            :request-stop
+            #:action{:requires
+                     #{:foo/assigned
+                       [:not :foo/sibling-stops]
+                       [:not :foo/granted]
+                       [:not :bar/stop]
+                       [:not
+                        :foo/pending-stop-request]
+                       [:not :foo/cancelled]
+                       [:not
+                        :foo/pending-release]
+                       [:not :foo/stop]},
+                     :produces
+                     #{:foo/pending-stop-request}}
+            :grant-stop-request
+            #:action{:requires
+                     #{:foo/pending-stop-request
+                       [:not :foo/sibling-stops]
+                       [:not :foo/granted]
+                       [:not :bar/stop]
+                       [:not :foo/cancelled]
+                       [:not
+                        :foo/pending-release]
+                       [:not :foo/stop]},
+                     :produces
+                     #{:foo/stop
+                       [:not
+                        :foo/pending-stop-request]}}
+            :request-release
+            #:action{:requires
+                     #{[:not :foo/granted]
+                       :foo/accepted
+                       [:not
+                        :foo/pending-release]
+                       [:not
+                        :foo/pending-assignment]
+                       [:not :foo/stop]},
+                     :produces
+                     #{:foo/pending-release
+                       [:not
+                        :foo/pending-request]
+                       [:not
+                        :foo/unconfirmed-info-provided]}}
+            :delegate-foo
+            #:action{:requires
+                     #{[:not :foo/granted]
+                       [:not :bar/stop]
+                       :foo/id
+                       [:not
+                        :foo/pending-release]
+                       [:not :foo/stop]},
+                     :repeatable true,
+                     :produces
+                     #{:foo/assigned
+                       :foo/pending-assignment}}
+            :bar-stop
+            #:action{:requires #{},
+                     :produces #{:bar/stop}}
+            :require-redo
+            #:action{:requires
+                     #{:foo/pending-release},
+                     :produces
+                     #{[:not :foo/granted]
+                       [:not
+                        :foo/pending-release]
+                       :foo/pending-redo}}
+            :date-changed
+            #:action{:requires
+                     #{:foo/assigned
+                       [:not :foo/granted]
+                       [:not :foo/cancelled]
+                       [:not
+                        :foo/pending-release]
+                       [:not :foo/stop]},
+                     :produces
+                     #{:foo/pending-release-date-acceptance
+                       :foo/date-changed},
+                     :repeatable true}
+            :accept-assigned-foo
+            #:action{:requires
+                     #{[:not :foo/granted]
+                       [:not :bar/stop]
+                       :foo/pending-assignment
+                       :foo/id
+                       [:not :foo/stop]},
+                     :produces
+                     #{:foo/accepted
+                       [:not
+                        :foo/pending-assignment]}}
+            :stop
+            #:action{:requires
+                     #{[:not :foo/sibling-stops]
+                       [:not :foo/granted]
+                       [:not :bar/stop]
+                       [:not
+                        :foo/pending-stop-request]
+                       [:not :foo/cancelled]
+                       [:not
+                        :foo/pending-release]
+                       [:not :foo/stop]},
+                     :produces #{:foo/stop}}
+            :assign-foo
+            #:action{:requires
+                     #{[:not :bar/stop]
+                       :foo/id
+                       [:not :foo/cancelled]
+                       [:not :foo/assigned]
+                       [:not :foo/stop]},
+                     :produces
+                     #{:foo/assigned
+                       :foo/pending-assignment}}
+            :provide-info
+            #:action{:requires
+                     #{[:not :foo/granted]
+                       :foo/pending-request
+                       :foo/id
+                       [:not
+                        :foo/pending-release]},
+                     :produces
+                     #{[:not
+                        :foo/pending-request]
+                       :foo/unconfirmed-info-provided}}
+            :grant-own-foo
+            #:action{:requires
+                     #{:foo/accepted
+                       [:not :bar/stop]
+                       :foo/id
+                       [:not :foo/stop]},
+                     :produces #{:foo/granted}}
+            :complete-redo
+            #:action{:requires
+                     #{:foo/accepted
+                       [:not
+                        :foo/pending-assignment]
+                       :foo/pending-redo},
+                     :produces
+                     #{:foo/pending-release
+                       [:not
+                        :foo/pending-request]},
+                     :personas
+                     #{:persona/foo-assignee}},
+            :unstop
+            #:action{:requires #{:foo/stop},
+                     :produces
+                     #{[:not :foo/stop]}}
+            :request-info
+            #:action{:requires
+                     #{:foo/assigned
+                       [:not :foo/granted]
+                       [:not
+                        :foo/pending-request]
+                       [:not
+                        :foo/pending-release]
+                       [:not :foo/stop]},
+                     :produces
+                     #{:foo/pending-request},
+                     :personas
+                     #{:persona/foo-assignee}},
+            :confirm-provided-information
+            #:action{:requires
+                     #{[:not :foo/granted]
+                       [:not :bar/stop]
+                       :foo/id
+                       [:not
+                        :foo/pending-request]
+                       :foo/unconfirmed-info-provided
+                       [:not :foo/stop]},
+                     :produces
+                     #{:foo/info-provided-accepted}}
+            :schedule-date-changed
+            #:action{:requires
+                     #{[:not :foo/granted]
+                       :foo/id
+                       [:not :foo/cancelled]
+                       [:not
+                        :foo/pending-release]
+                       [:not :foo/stop]},
+                     :produces
+                     #{:foo/scheduled-date},
+                     :repeatable true},
+            :deny-stop-request
+            #:action{:requires
+                     #{:foo/pending-stop-request
+                       [:not :foo/sibling-stops]
+                       [:not :foo/granted]
+                       [:not :bar/stop]
+                       [:not :foo/cancelled]
+                       [:not
+                        :foo/pending-release]},
+                     :produces
+                     #{[:not
+                        :foo/pending-stop-request]}}
+            :accept-redo
+            #:action{:requires
+                     #{[:not :bar/stop]
+                       [:not
+                        :foo/redo-accepted]
+                       :foo/id
+                       [:not
+                        :foo/pending-release]
+                       :foo/pending-redo
+                       [:not :foo/stop]},
+                     :produces
+                     #{:foo/redo-accepted},
+                     :personas
+                     #{:persona/foo-assignee}},
+            :accept-release-date-change
+            #:action{:requires
+                     #{[:not :bar/stop]
+                       :foo/id
+                       [:not
+                        :foo/release-date-change-accepted]
+                       :foo/pending-release-date-acceptance
+                       [:not :foo/stop]},
+                     :produces
+                     #{:foo/release-date-change-accepted},
+                     :personas
+                     #{:persona/foo-assignee}},
+            :unrequest-info
+            #:action{:requires
+                     #{:foo/pending-request},
+                     :produces
+                     #{[:not
+                        :foo/pending-request]}}
+            :self-accept-foo
+            #:action{:requires
+                     #{[:not :bar/stop]
+                       :foo/id
+                       [:not
+                        :foo/pending-release]
+                       [:not :foo/assigned]
+                       [:not :foo/stop]},
+                     :produces
+                     #{:foo/accepted
+                       [:not
+                        :foo/pending-assignment]}}
+            :reassign-foo
+            #:action{:requires
+                     #{:foo/assigned
+                       [:not :foo/granted]
+                       [:not :bar/stop]
+                       :foo/id
+                       [:not :foo/cancelled]
+                       [:not
+                        :foo/pending-release]
+                       [:not :foo/stop]},
+                     :produces
+                     #{:foo/pending-assignment
+                       :foo/reassigned
+                       :foo/owner-id}}
+            :cancel
+            #:action{:requires
+                     #{[:not :foo/granted]
+                       [:not :bar/stop]
+                       [:not
+                        :foo/pending-redo]
+                       [:not
+                        :foo/pending-release]
+                       [:not :foo/stop]},
+                     :produces
+                     #{:foo/cancelled
+                       [:not
+                        :foo/unconfirmed-info-provided]}}
+            :stop-on-sibling-foos
+            #:action{:requires #{},
+                     :produces
+                     #{:foo/sibling-stops}}}})
+
+(deftest test-complicated-blockers
+  (let [workflow (-> complicated-blockers
+                     (lm/add-facts #{:foo/official-id
+                                     :foo/id})
+                     (assoc :action-dependencies/graph
+                            (g/action-graph complicated-blockers)))]
+    (is (= #{:action/assign-foo :action/self-accept-foo :action/delegate-foo}
+           (time (lm/blockers workflow :action/cancel))))))
