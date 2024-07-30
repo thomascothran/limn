@@ -175,8 +175,8 @@
             :non-blocker #{},
             :intermediate #{:blocker-a},
             :dangler #{},
-            :leaf #{:blocker-b :blocker-a}})
-        (time (lm/blockers workflow)))))
+            :leaf #{:blocker-b :blocker-a}}
+           (lm/blockers workflow)))))
 
 (def complicated-blockers
   {:workflow/actions
