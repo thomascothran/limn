@@ -19,9 +19,9 @@
     </developer>
   </developers>
   <scm>
-    <url>https://github.com/tech.thomascothran/nexus</url>
-    <connection>scm:git:git://github.com/tech.thomascothran/nexus.git</connection>
-    <developerConnection>scm:git:ssh://git@github.com/tech.thomascothran/nexus.git</developerConnection>
+    <url>https://github.com/tech.thomascothran/limn</url>
+    <connection>scm:git:git://github.com/tech.thomascothran/limn.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/tech.thomascothran/limn.git</developerConnection>
     <tag>v0.1.0-SNAPSHOT</tag>
   </scm>
   <dependencies>
