@@ -7,4 +7,5 @@
   :test {:extra-paths ["test"]
          :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}}
          :exec-fn kaocha.runner/exec-fn
+         :main-opts ["-m" "kaocha.runner"]
          :exec-args {}}}}
