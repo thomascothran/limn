@@ -26,6 +26,21 @@
   [workflow]
   (:workflow/facts workflow))
 
+(defmethod ports/facts->set
+  :clojure/map
+  [fact-map]
+  (set (keys fact-map)))
+
+(defmethod ports/facts->set
+  :clojure/set
+  [fact-set]
+  fact-set)
+
+(defmethod ports/facts->set
+  nil
+  [_]
+  #{})
+
 (defmethod ports/requires
   [:clojure/map :action]
   [workflow _ id]
@@ -57,7 +72,7 @@
                                      (first %))))
                     (map second))
               produces)
-        facts (or (ports/facts workflow)
+        facts (or (ports/facts->set (ports/facts workflow))
                   #{})]
 
     (if repeatable?
@@ -99,7 +114,7 @@
 
 (defn- action-ready?
   [facts requirements]
-  (let [facts' (into #{} facts)
+  (let [facts' (ports/facts->set facts)
 
         positive-requirements
         (into #{} (filter keyword) requirements)
@@ -115,7 +130,7 @@
 
 (defn- ready
   [workflow]
-  (let [facts (ports/facts workflow)
+  (let [facts  (ports/facts->set (ports/facts workflow))
         actions (ports/actions workflow)
         requirements #(ports/requires workflow :action %)
         incomplete-actions (ports/incomplete workflow :actions)]

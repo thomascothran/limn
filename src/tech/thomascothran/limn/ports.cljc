@@ -12,6 +12,9 @@
 (defmulti facts
   (fn [workflow] (type workflow)))
 
+(defmulti facts->set
+  (fn [facts] (type facts)))
+
 (defmulti actions
   "Find all the actions in a workflow"
   (fn [workflow & _]

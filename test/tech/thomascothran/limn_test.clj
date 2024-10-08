@@ -1,5 +1,6 @@
 (ns tech.thomascothran.limn-test
   (:require [clojure.test :refer [deftest is testing]]
+            [tech.thomascothran.limn.ports :as ports]
             [tech.thomascothran.limn.adapters]
             [tech.thomascothran.limn :as lm]
             [tech.thomascothran.limn.graph :as g]))
@@ -41,6 +42,14 @@
              (lm/add-facts #{:mower/fueled})
              (lm/facts)))))
 
+(deftest fact-set
+  (is (= #{:mower/fueled}
+         (ports/facts->set {:mower/fueled true})))
+  (is (= #{:mower/fueled}
+         (ports/facts->set {:mower/fueled false})))
+  (is (= #{:mower/fueled}
+         (ports/facts->set {:mower/fueled nil}))))
+
 (deftest find-action
   (is (-> (lm/make-workflow mow-lawn-spec)
           (lm/action :cut-grass))))
@@ -59,7 +68,7 @@
           (= false)))
 
   (is (-> (lm/make-workflow mow-lawn-spec)
-          (lm/add-facts #{:mower/fueled})
+          (lm/add-facts {:mower/fueled true})
           (lm/complete? :action :get-gas))))
 
 (deftest all-complete-actions
@@ -69,7 +78,7 @@
 
   (is (= #{:get-gas}
          (-> (lm/make-workflow mow-lawn-spec)
-             (lm/add-facts #{:mower/fueled})
+             (lm/add-facts {:mower/fueled true})
              (lm/complete :actions)))))
 
 (deftest all-incomplete-actions
@@ -475,8 +484,8 @@
 
 (deftest test-complicated-blockers
   (let [workflow (-> complicated-blockers
-                     (lm/add-facts #{:foo/official-id
-                                     :foo/id})
+                     (lm/add-facts {:foo/official-id 1
+                                    :foo/id 2})
                      (assoc :action-dependencies/graph
                             (g/action-graph complicated-blockers)))]
     (is (= #{:action/assign-foo :action/self-accept-foo :action/delegate-foo}
