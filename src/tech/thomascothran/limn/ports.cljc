@@ -47,8 +47,10 @@
   (fn [workflow xtype]
     [(type workflow) xtype]))
 
+(defmulti personas
+  type)
+
 (defmulti authorized-actions
   "What is the set of actions an actor (a human user or machine) is authorized to take?"
-  (fn [workflow actor]
-    [(type (:authorization/strategy workflow))
-     (type actor)]))
+  (fn [workflow]
+    (get workflow :authorization/strategy)))

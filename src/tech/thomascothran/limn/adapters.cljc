@@ -80,10 +80,14 @@
       (and (set/subset? required-products facts)
            (= #{} (set/intersection  excluded-facts facts))))))
 
+(defn eval-vals
+  [m]
+  (into {} (map #(update % 1 eval)) m))
+
 (defmethod ports/make-workflow
   :clojure/map
   [workflow]
-  workflow)
+  (update workflow :workflow/personas eval-vals))
 
 (defmethod ports/action
   :clojure/map
@@ -138,7 +142,8 @@
           (comp (filter (fn [[action-id _action]]
                           (action-ready? facts (requirements action-id))))
                 (filter (comp incomplete-actions first))
-                (map first))
+                (map (fn [[action-name action]]
+                       (assoc action :action/name action-name))))
           actions)))
 
 (defmethod ports/ready
@@ -146,3 +151,26 @@
   [workflow _actions]
   (ready workflow))
 
+(defmethod ports/personas
+  :clojure/map
+  [workflow]
+  (if-let [personas (get workflow :workflow/personas)]
+    (let [facts (get workflow :workflow/facts)
+          apply-to-facts #(apply (second %) [facts])]
+      (into #{}
+            (comp (filter apply-to-facts)
+                  (map first))
+            personas))
+    #{}))
+
+(defmethod ports/authorized-actions
+  nil
+  [workflow]
+  (let [ready-actions (ports/ready workflow :actions)
+        personas (ports/personas workflow)]
+    (into #{}
+          (filter (fn [action]
+                    (->> (get action :action/personas)
+                         (set/intersection personas)
+                         seq)))
+          ready-actions)))

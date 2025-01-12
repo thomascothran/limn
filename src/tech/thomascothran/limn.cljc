@@ -49,12 +49,18 @@
   (ports/ready workflow xtype))
 
 (defn authorized-actions
-  [workflow actor]
-  (ports/authorized-actions workflow actor))
+  [workflow]
+  (ports/authorized-actions workflow))
+
+(defn personas
+  [workflow]
+  (ports/personas workflow))
 
 (defn- action-blockers
   ([workflow action-name]
-   (let [ready-actions    (ready workflow :actions)
+   (let [ready-actions    (into #{}
+                                (map :action/name)
+                                (ready workflow :actions))
          complete-actions (complete workflow :actions)
          action-graph       (or (workflow :action-dependencies/graph)
                                 (g/action-graph workflow))]
@@ -101,7 +107,9 @@
 
 (defn- workflow-blockers
   ([workflow]
-   (let [ready-actions      (ready workflow :actions)
+   (let [ready-actions      (into #{}
+                                  (map :action/name)
+                                  (ready workflow :actions))
          complete-actions   (complete workflow :actions)
          incomplete-actions (incomplete workflow :actions)
          action-graph       (or (workflow :action-dependencies/graph)

@@ -30,7 +30,7 @@
      :action/produces #{:grass/cut}}}})
 
 (deftest make-workflow-action
-  (is (= mow-lawn-spec
+  (is (= (assoc mow-lawn-spec :workflow/personas {})
          (lm/make-workflow mow-lawn-spec))))
 
 (comment
@@ -93,13 +93,20 @@
 
 (deftest ready-actions
   (is (= #{:don-safety-glasses :get-gas}
-         (lm/ready (lm/make-workflow  mow-lawn-spec) :actions)))
-  (is (= #{:start-mower}
-         (-> mow-lawn-spec
-             lm/make-workflow
-             (lm/add-facts #{:mower/fueled
-                             :worker/prepared})
-             (lm/ready :actions)))))
+         (into #{}
+               (map :action/name)
+               (lm/ready (lm/make-workflow  mow-lawn-spec) :actions))))
+
+  (let [ready-actions
+        (-> mow-lawn-spec
+            lm/make-workflow
+            (lm/add-facts #{:mower/fueled
+                            :worker/prepared})
+            (lm/ready :actions))]
+    (is (= #{:start-mower}
+           (into #{}
+                 (map :action/name)
+                 ready-actions)))))
 
 ;; Negative conditions
 
@@ -122,10 +129,12 @@
              lm/make-workflow
              (lm/incomplete :actions))))
 
-  (is (= #{:step-a :step-b}
-         (-> negative-conditions-spec
-             lm/make-workflow
-             (lm/ready :actions)))))
+  (let [ready-actions
+        (-> negative-conditions-spec
+            lm/make-workflow
+            (lm/ready :actions))]
+    (is (= #{:step-a :step-b}
+           (into #{} (map :action/name ready-actions))))))
 
 ;; Repeatable actions
 
