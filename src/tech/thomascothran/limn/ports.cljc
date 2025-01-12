@@ -53,4 +53,5 @@
 (defmulti authorized-actions
   "What is the set of actions an actor (a human user or machine) is authorized to take?"
   (fn [workflow]
-    (get workflow :authorization/strategy)))
+    [(type workflow)
+     (get workflow :authorization/strategy)]))

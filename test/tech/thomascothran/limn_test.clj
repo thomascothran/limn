@@ -93,9 +93,7 @@
 
 (deftest ready-actions
   (is (= #{:don-safety-glasses :get-gas}
-         (into #{}
-               (map :action/name)
-               (lm/ready (lm/make-workflow  mow-lawn-spec) :actions))))
+         (lm/ready (lm/make-workflow  mow-lawn-spec) :actions)))
 
   (let [ready-actions
         (-> mow-lawn-spec
@@ -104,9 +102,7 @@
                             :worker/prepared})
             (lm/ready :actions))]
     (is (= #{:start-mower}
-           (into #{}
-                 (map :action/name)
-                 ready-actions)))))
+           ready-actions))))
 
 ;; Negative conditions
 
@@ -134,7 +130,7 @@
             lm/make-workflow
             (lm/ready :actions))]
     (is (= #{:step-a :step-b}
-           (into #{} (map :action/name ready-actions))))))
+           ready-actions))))
 
 ;; Repeatable actions
 
@@ -498,4 +494,4 @@
                      (assoc :action-dependencies/graph
                             (g/action-graph complicated-blockers)))]
     (is (= #{:action/assign-foo :action/self-accept-foo :action/delegate-foo}
-           (time (lm/blockers workflow :action/cancel))))))
+           (lm/blockers workflow :action/cancel)))))

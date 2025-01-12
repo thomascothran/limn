@@ -58,9 +58,7 @@
 
 (defn- action-blockers
   ([workflow action-name]
-   (let [ready-actions    (into #{}
-                                (map :action/name)
-                                (ready workflow :actions))
+   (let [ready-actions    (ready workflow :actions)
          complete-actions (complete workflow :actions)
          action-graph       (or (workflow :action-dependencies/graph)
                                 (g/action-graph workflow))]
@@ -107,9 +105,7 @@
 
 (defn- workflow-blockers
   ([workflow]
-   (let [ready-actions      (into #{}
-                                  (map :action/name)
-                                  (ready workflow :actions))
+   (let [ready-actions      (ready workflow :actions)
          complete-actions   (complete workflow :actions)
          incomplete-actions (incomplete workflow :actions)
          action-graph       (or (workflow :action-dependencies/graph)

@@ -149,7 +149,7 @@
 (defmethod ports/ready
   [:clojure/map :actions]
   [workflow _actions]
-  (ready workflow))
+  (into #{} (map :action/name) (ready workflow)))
 
 (defmethod ports/personas
   :clojure/map
@@ -164,9 +164,9 @@
     #{}))
 
 (defmethod ports/authorized-actions
-  nil
+  [:clojure/map nil]
   [workflow]
-  (let [ready-actions (ports/ready workflow :actions)
+  (let [ready-actions (ready workflow)
         personas (ports/personas workflow)]
     (into #{}
           (filter (fn [action]
