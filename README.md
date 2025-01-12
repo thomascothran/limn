@@ -1,5 +1,7 @@
 # Limn: Artifact-Oriented Business Process Modeling
 
+[![Clojars Project](https://img.shields.io/clojars/v/tech.thomascothran/limn.svg)](https://clojars.org/tech.thomascothran/limn)
+
 Model your business rules in Clojure(Script)
 
 ![limn image](./doc/resources/limn.webp)
