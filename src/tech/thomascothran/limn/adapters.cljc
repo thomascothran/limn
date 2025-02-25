@@ -11,10 +11,34 @@
 #?(:clj (derive clojure.lang.PersistentHashSet :clojure/set)
    :cljs (derive PersistentHashSet :clojure/set))
 
+(defn- eval-vals
+  [m]
+  (into {} (map #(update % 1 eval)) m))
+
+(defn- derived-facts-applier
+  [facts args]
+  (let [rule-name (first args)
+        rule (second args)
+        rule-fn (get rule :fn)
+        f (if (fn? rule-fn)
+            rule-fn
+            (eval rule-fn))]
+    [rule-name (boolean (f facts))]))
+
+(defn- derived-facts
+  [workflow facts]
+  (let [rules (get workflow :workflow/rules)]
+    (when rules
+      (into {}
+            (comp (map #(derived-facts-applier facts %))
+                  (filter second))
+            rules))))
+
 (defmethod ports/add-facts
   [:clojure/map :clojure/map]
   [workflow facts]
-  (assoc workflow :workflow/facts facts))
+  (->> (merge facts (derived-facts workflow facts))
+       (assoc workflow :workflow/facts)))
 
 (defmethod ports/add-facts
   [:clojure/map :clojure/set]
@@ -79,10 +103,6 @@
       false
       (and (set/subset? required-products facts)
            (= #{} (set/intersection  excluded-facts facts))))))
-
-(defn eval-vals
-  [m]
-  (into {} (map #(update % 1 eval)) m))
 
 (defmethod ports/make-workflow
   :clojure/map
