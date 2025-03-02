@@ -2,8 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [tech.thomascothran.limn.ports :as ports]
             [tech.thomascothran.limn.adapters]
-            [tech.thomascothran.limn :as lm]
-            [tech.thomascothran.limn.graph :as g]))
+            [tech.thomascothran.limn :as lm]))
 
 (def mow-lawn-spec
   {:workflow/name "Mow the lawn"
@@ -159,13 +158,16 @@
    {:blocker-a {:action/requires #{}
                 :action/produces #{:a}}
     :blocker-b {:action/requires #{}
-                :action/produces #{:z}}
+                :action/produces #{:z [:not :l]}}
     :non-blocker {:action/requires #{}
                   :action/produces #{:m}}
     :dangler     {:action/requires #{:x}
                   :action/produces #{:xy}}
     :intermediate {:action/requires #{:a}
                    :action/produces #{:b}}
+    :negative {:action/requires #{[:not :l]
+                                  [:not :b]}
+               :action/produces #{[:not :n] :m}}
     :leaf {:action/requires #{:b :z}
            :action/produces #{:c}}}})
 
@@ -182,13 +184,15 @@
       (is (= #{:blocker-a :blocker-b}
              (lm/blockers workflow :leaf))))))
 
+(deftest test-negative-requirements-on-blockers
+  (let [workflow (-> (lm/make-workflow blocker-spec)
+                     (lm/add-facts {:a true}))]
+    (is (= #{:blocker-b}
+           (lm/blockers workflow :negative)))))
+
 (deftest test-workflow-blockers
   (let [workflow (lm/make-workflow blocker-spec)]
-    (is (= {:blocker-b #{},
-            :blocker-a #{},
-            :non-blocker #{},
-            :intermediate #{:blocker-a},
-            :dangler #{},
+    (is (= {:intermediate #{:blocker-a},
             :leaf #{:blocker-b :blocker-a}}
            (lm/blockers workflow)))))
 
@@ -490,8 +494,6 @@
 (deftest test-complicated-blockers
   (let [workflow (-> complicated-blockers
                      (lm/add-facts {:foo/official-id 1
-                                    :foo/id 2})
-                     (assoc :action-dependencies/graph
-                            (g/action-graph complicated-blockers)))]
+                                    :foo/id 2}))]
     (is (= #{:action/assign-foo :action/self-accept-foo :action/delegate-foo}
            (lm/blockers workflow :action/cancel)))))

@@ -85,7 +85,6 @@
         {:middle #{:root}
          :leaf #{:middle}}
 
-        actual-graph (g/action-graph workflow)]
+        actual-graph (g/children->parents workflow)]
 
     (is (= expected-graph actual-graph))))
-

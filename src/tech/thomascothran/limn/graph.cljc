@@ -4,10 +4,10 @@
 
 (defn associate-action-with-deps
   "Assocate an action with its dependencies.
-  
+
   `m` is a map of a product to the actions that require
-  and produce it. E.g., 
-  
+  and produce it. E.g.,
+
   ```
   {:coffee-brewed {:product/producers #{:use-keurig :use-french-press}
                    :produces/requirers #{:drink-coffee} }}
@@ -43,9 +43,9 @@
 (defn products->actions
   "get a map of the products to their related
   producing and requiring actions.
-  
+
   Example return value:
-  
+
   ```
   {:coffee-brewed {:product/producers #{:use-keurig :use-french-press}
                    :produces/requirers #{:drink-coffee} }}
@@ -80,8 +80,89 @@
 
   (create-edges dep-graph requirers producers))
 
-(defn action-graph
+(defn children->parents
   [workflow]
   (->> (products->actions workflow)
        vals
        (reduce action-graph-reducer {})))
+
+(defn parents->children
+  "Map of the parents (providers of facts) to their immediate
+  chilren (actions that require those facts)"
+  [workflow]
+  (let [products->actions' (products->actions workflow)]
+    (reduce (fn [acc actions]
+              (let [producers (get actions :product/producers #{})
+                    requires  (get actions :product/requirers #{})]
+                (reduce (fn [acc' producer]
+                          (update acc' producer (partial into requires)))
+                        acc
+                        producers)))
+
+            {}
+            (vals products->actions'))))
+
+(comment
+  (parents->children
+   {:workflow/actions
+    {:root {:action/requires #{}
+            :action/produces #{:a}}
+     :middle {:action/requires #{:a}
+              :action/produces #{:b}}
+     :leaf {:action/requires #{:b}
+            :action/produces #{:c}}
+     :island {:action/requires #{:y}
+              :action/produces #{:z}}}}))
+
+(defn- roots
+  [workflow]
+  (into #{}
+        (comp
+         (remove (comp seq
+                       #(ports/requires workflow :action
+                                        (first %))))
+         (map first))
+        (ports/actions workflow)))
+
+(defn action->ancestors
+  "returns all the dependencies for a given action, both
+  the immediate parent actions that provide its required facts,
+  and the dependencies for those parents, grandparents, etc."
+  [workflow]
+  (let [parents->children (parents->children workflow)]
+    (loop [queue               (roots workflow)
+           action->ancestors   (into {}
+                                     (comp (map first)
+                                           (map (fn [action-name]
+                                                  [action-name #{}])))
+                                     (ports/actions workflow))
+           processed           #{}]
+      (if-let [action-name (first queue)]
+        (let [children (get parents->children action-name #{})
+              queue' (into (disj queue action-name)
+                           (remove processed)
+                           children)
+              action->ancestors'
+              (reduce (fn [acc child]
+                        (update acc child into
+                                (conj
+                                 (get action->ancestors action-name #{})
+                                 action-name)))
+                      action->ancestors
+                      children)
+              processed' (conj processed action-name)]
+          (recur queue' action->ancestors' processed'))
+        action->ancestors))))
+
+(comment
+  (time
+   (action->ancestors
+    {:workflow/actions
+     {:root {:action/requires #{}
+             :action/produces #{:a}}
+      :middle {:action/requires #{:a}
+               :action/produces #{:b}}
+      :leaf {:action/requires #{:b}
+             :action/produces #{:c}}
+      :island {:action/requires #{:y}
+               :action/produces #{:z}}}})))

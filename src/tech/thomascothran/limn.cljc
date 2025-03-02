@@ -61,7 +61,7 @@
    (let [ready-actions    (ready workflow :actions)
          complete-actions (complete workflow :actions)
          action-graph       (or (workflow :action-dependencies/graph)
-                                (g/action-graph workflow))]
+                                (g/children->parents workflow))]
      (action-blockers workflow action-name {:ready-actions ready-actions
                                             :complete-actions complete-actions
                                             :action-graph action-graph})))
@@ -104,30 +104,19 @@
          blockers)))))
 
 (defn- workflow-blockers
-  ([workflow]
-   (let [ready-actions      (ready workflow :actions)
-         complete-actions   (complete workflow :actions)
-         incomplete-actions (incomplete workflow :actions)
-         action-graph       (or (workflow :action-dependencies/graph)
-                                (g/action-graph workflow))
-         processed-actions  (->> (into ready-actions complete-actions)
-                                 (reduce #(assoc %1 %2 #{}) {}))
-         opts               {:action-graph action-graph
-                             :ready-actions ready-actions
-                             :complete-actions complete-actions
-                             :incomplete-actions incomplete-actions
-                             :processed-actions processed-actions}]
-
-     (loop [queue (into [] incomplete-actions)
-            processed-actions' processed-actions]
-       (if-let [next-action-name (first queue)]
-         (let [action-blockers'
-               (action-blockers workflow next-action-name
-                                (assoc opts :processed-actions
-                                       processed-actions'))]
-           (recur (rest queue)
-                  (assoc processed-actions' next-action-name action-blockers')))
-         processed-actions')))))
+  [workflow]
+  (let [ready-actions      (ready workflow :actions)
+        action->ancestors  (or (get workflow :workflow/action->ancestors)
+                               (g/action->ancestors workflow))]
+    (into {}
+          (comp (remove (comp ready-actions first))
+                (map (fn [args]
+                       (let [action-name (first args)
+                             ancestors   (or (second args) #{})]
+                         [action-name
+                          (set/intersection ancestors ready-actions)])))
+                (filter (comp seq second)))
+          action->ancestors)))
 
 (defn blockers
   "Get the blockers for a workflow (single arity) or a
