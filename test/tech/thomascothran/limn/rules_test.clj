@@ -19,7 +19,7 @@
    {:sufficient-coffee-beans
     {:fn '(fn [facts] (<= 3 (get facts :scoops)))}}})
 
-(deftest test-derivations-when-not-activated
+(deftest test-rules-application
   (is (= #{:get-beans}
          (-> (lm/make-workflow make-coffee-workflow)
              (lm/add-facts {:scoops 2})
@@ -37,3 +37,8 @@
              (lm/make-workflow)
              (lm/add-facts {:scoops 3})
              (lm/ready :actions)))))
+
+(deftest test-rules-revocation
+  (is (-> (lm/make-workflow make-coffee-workflow)
+          (lm/add-facts {:scoops 3})
+          (lm/ready :actions))))
