@@ -11,19 +11,21 @@
 #?(:clj (derive clojure.lang.PersistentHashSet :clojure/set)
    :cljs (derive PersistentHashSet :clojure/set))
 
+(defn- eval*
+  [x]
+  #?{:clj (eval x)
+     :cljs (if (fn? x) x (eval x))})
+
 (defn- eval-vals
   [m]
-  (into {} (map #(update % 1 eval)) m))
+  (into {} (map #(update % 1 eval*)) m))
 
 (defn- derived-facts-applier
   [facts args]
   (let [rule-name (first args)
         rule (second args)
-        rule-fn (get rule :fn)
-        f (if (fn? rule-fn)
-            rule-fn
-            (eval rule-fn))]
-    [rule-name (boolean (f facts))]))
+        rule-fn (eval* (get rule :fn))]
+    [rule-name (boolean (rule-fn facts))]))
 
 (defn- derived-facts
   [workflow facts]
