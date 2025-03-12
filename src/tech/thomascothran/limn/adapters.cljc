@@ -13,8 +13,8 @@
 
 (defn- eval*
   [x]
-  #?{:clj (eval x)
-     :cljs (if (fn? x) x (eval x))})
+  #?(:clj (eval x)
+     :cljs (if (fn? x) x (eval x))))
 
 (defn- eval-vals
   [m]
