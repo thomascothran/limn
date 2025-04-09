@@ -34,8 +34,8 @@
                    (assert (= {:foo/id 1
                                :foo/status "ready"
                                :bar/id 2
-                               :bar/status "closed"})
-                           data)
+                               :bar/status "closed"}
+                              data))
                    {:effects [effect]
                     :events events}))
 
