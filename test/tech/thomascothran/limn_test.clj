@@ -44,9 +44,9 @@
 (deftest fact-set
   (is (= #{:mower/fueled}
          (ports/facts->set {:mower/fueled true})))
-  (is (= #{:mower/fueled}
+  (is (= #{}
          (ports/facts->set {:mower/fueled false})))
-  (is (= #{:mower/fueled}
+  (is (= #{}
          (ports/facts->set {:mower/fueled nil}))))
 
 (deftest find-action

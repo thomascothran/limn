@@ -55,7 +55,9 @@
 (defmethod ports/facts->set
   :clojure/map
   [fact-map]
-  (set (keys fact-map)))
+  (into #{} (comp (filter second)
+                  (map first))
+        fact-map))
 
 (defmethod ports/facts->set
   :clojure/set
