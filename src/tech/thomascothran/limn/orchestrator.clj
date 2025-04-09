@@ -61,7 +61,8 @@
 
   `dispatch-effects`
   -----------------
-  Takes a sequence of effects and executes them.")
+  Takes a sequence of effects and executes them."
+  (:require [tech.thomascothran.limn :as l]))
 
 (defn- find-and-merge
   [finder data-requests]
@@ -72,6 +73,24 @@
                 acc)))
           {}
           data-requests))
+
+(defn workflow-anomalies
+  [input workflow data]
+  (when workflow
+    (when-let [action-name (get input :action/name)]
+      (let [workflow' (l/add-facts workflow data)
+            available-actions (l/ready workflow' :actions)
+            authorized-actions
+            (into #{}
+                  (map :action/name)
+                  (l/authorized-actions workflow'))]
+        (cond (not (get available-actions action-name))
+              {:anomaly/category :conflict
+               :blockers (l/blockers workflow' action-name)}
+
+              (not (get authorized-actions action-name))
+              {:anomaly/category :forbidden
+               :personas (l/personas workflow')})))))
 
 (defn orchestrate!
   "Execute effects and emit events based on business logic.
@@ -107,24 +126,25 @@
   - `:dispatch-effects!`: takes the sequence of effects and
     executes them
   "
-  [m input]
-  (let [dispatch-effects! (get m :dispatch-effects!)
-        finder            (get m :finder)
-        workflow          (get m :workflow)
-        decider           (get m :decider)
-        data-request      (get (decider input) :find)
-        data              (find-and-merge finder data-request)
-        result            (decider input data)
-        effects           (get result :effects)
-        events            (get result :events)
-        anomaly           (get result :anomaly/category)
-        run-effects?      (and effects (not anomaly))
-        _                 (when run-effects?
-                            (dispatch-effects! effects))]
-    (when workflow
-      (throw (Exception. "TODO")))
-    (if anomaly
-      (dissoc result :effects :events)
-      {:effects effects
-       :events events
-       :data data})))
+  ([m input]
+   (let [finder             (get m :finder)
+         decider            (get m :decider)
+         data-request       (get (decider input) :find)
+         data               (find-and-merge finder data-request)]
+     (orchestrate! m input data)))
+  ([m input data]
+   (or (workflow-anomalies input (get m :workflow) data)
+       (let [dispatch-effects!  (get m :dispatch-effects!)
+             decider            (get m :decider)
+             result             (decider input data)
+             effects            (get result :effects)
+             events             (get result :events)
+             anomaly            (get result :anomaly/category)
+             run-effects?       (and effects (not anomaly))
+             _                  (when run-effects?
+                                  (dispatch-effects! effects))]
+         (if anomaly
+           (dissoc result :effects :events)
+           {:effects effects
+            :events events
+            :data data})))))
