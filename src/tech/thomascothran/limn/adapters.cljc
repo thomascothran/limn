@@ -194,7 +194,10 @@
         personas (ports/personas workflow)]
     (into #{}
           (filter (fn [action]
-                    (->> (get action :action/personas)
-                         (set/intersection personas)
-                         seq)))
+                    (if-let [action-personas
+                             (get action :action/personas)]
+                      (->> action-personas
+                           (set/intersection personas)
+                           seq)
+                      true)))
           ready-actions)))

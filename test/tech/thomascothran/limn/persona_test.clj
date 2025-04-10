@@ -1,6 +1,7 @@
 (ns tech.thomascothran.limn.persona-test
   (:require [clojure.test :refer [deftest is]]
-            [tech.thomascothran.limn :as lm]))
+            [tech.thomascothran.limn :as lm]
+            [tech.thomascothran.limn :as l]))
 
 (def test-persona-workflow
   {:workflow/name "Delegate"
@@ -84,3 +85,14 @@
                             :personas #{:supervisor},
                             :name :assign-task}}]
     (is (= expected authorized-actions))))
+
+(def workflow-without-personas
+  (l/make-workflow
+   {:workflow/name "No personas required"
+    :workflow/actions
+    {:say-hello
+     {:action/requires #{}
+      :action/produces #{:conviviality}}
+     :say-goodbye
+     {:action/requires #{:conviviality}
+      :action/produces #{:done}}}}))
