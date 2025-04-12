@@ -166,3 +166,27 @@
              :action/produces #{:c}}
       :island {:action/requires #{:y}
                :action/produces #{:z}}}})))
+
+(defn all-paths
+  "Get all non-cyclic paths from one node to another.
+
+  Caution: this can increase exponentially."
+  [workflow from to]
+  (let [checked (transient #{})
+        graph (parents->children workflow)
+        paths (transient #{})]
+    (loop [path [from]
+           stack (into (list) (get graph from))]
+      (when-let [next-action (first stack)]
+        (cond (get checked next-action)
+              (recur path (rest stack))
+
+              (= next-action to)
+              (do (conj! paths (conj path to))
+                  (recur (into [] (butlast path))
+                         (rest stack)))
+              :else
+              (do (conj! checked next-action)
+                  (recur (conj path next-action)
+                         (into (rest stack) (get graph next-action)))))))
+    (persistent! paths)))
