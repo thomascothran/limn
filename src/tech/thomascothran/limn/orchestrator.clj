@@ -148,3 +148,27 @@
            {:effects effects
             :events events
             :data data})))))
+
+(defn execute!
+  [m action]
+  (let [fetch! (get m :fetch!)
+        persist! (get m :persist!)
+        decider (get m :decider)]
+    (loop [fetch-effects (decider action)
+           state         nil
+           action'       action
+           events        []]
+      (let [state' (or state (fetch! fetch-effects))
+            persist-effects (decider action' state')
+            next-action (get persist-effects :next-action)
+            next-state  (get persist-effects :next-state)
+            events' (into events (get persist-effects :events))]
+        (persist! persist-effects)
+        (if-not next-action
+          events'
+          (recur (if next-state
+                   (decider action' next-state)
+                   (decider action'))
+                 next-state
+                 next-action
+                 events'))))))

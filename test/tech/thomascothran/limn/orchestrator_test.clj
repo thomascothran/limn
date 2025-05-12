@@ -57,6 +57,112 @@
         "Should return the data")
     (is (= [effect] (first @!state)))))
 
+(deftest text-execute!-with-continuous-actions
+  (let [!state (atom [])
+
+        log-foo-action {:action/type :foo/log-foo}
+        log-bar-action {:action/type :bar/log-bar}
+
+        foo {:foo/id 1 :foo/status :ready}
+
+        bar {:bar/id 2 :bar/status :closed}
+
+        fetch! (fn [{event-type :event/type}]
+                 (case event-type
+                   :find-foo foo
+                   :find-bar bar))
+
+        persist! (fn [effects]
+                   (swap! !state conj effects))
+
+        event1 {:event/type :found-foo :state foo}
+        event2 {:event/type :found-bar :state bar}
+
+        decider (fn decider
+                  ([{action-type :action/type}]
+                   (case action-type
+                     :foo/log-foo {:event/type :find-foo}
+                     :bar/log-bar {:event/type :find-bar}))
+                  ([{action-type :action/type :as action} state]
+                   (case action-type
+                     :foo/log-foo
+                     {:effects [{:effect/type :log-foo
+                                 :action action
+                                 :state state}]
+                      :next-action log-bar-action
+                      :events [event1]}
+
+                     :bar/log-bar
+                     {:effects [{:effect/type :log-bar
+                                 :action action
+                                 :state state}]
+                      :events [event2]})))
+        result (o/execute!
+                {:fetch! fetch!
+                 :persist! persist!
+                 :decider decider}
+                log-foo-action)]
+
+    (is (= [{:effect/type :log-foo
+             :state foo
+             :action log-foo-action}]
+           (get (first @!state) :effects)))
+
+    (is (= [event1 event2] result))))
+
+(deftest text-execute!-with-continuous-actions-with-state
+  (let [!state (atom [])
+
+        log-foo-action {:action/type :foo/log-foo}
+        log-bar-action {:action/type :bar/log-bar}
+
+        foo {:foo/id 1 :foo/status :ready}
+
+        bar {:bar/id 2 :bar/status :closed}
+
+        fetch! (fn [{event-type :event/type}]
+                 (case event-type
+                   :find-foo foo
+                   :find-bar bar))
+
+        persist! (fn [effects]
+                   (swap! !state conj effects))
+
+        event1 {:event/type :found-foo :state foo}
+        event2 {:event/type :found-bar :state bar}
+
+        decider (fn decider
+                  ([{action-type :action/type}]
+                   (case action-type
+                     :foo/log-foo {:event/type :find-foo}))
+                  ([{action-type :action/type :as action} state]
+                   (case action-type
+                     :foo/log-foo
+                     {:effects [{:effect/type :log-foo
+                                 :action action
+                                 :state state}]
+                      :next-action log-bar-action
+                      :next-state bar
+                      :events [event1]}
+
+                     :bar/log-bar
+                     {:effects [{:effect/type :log-bar
+                                 :action action
+                                 :state state}]
+                      :events [event2]})))
+        result (o/execute!
+                {:fetch! fetch!
+                 :persist! persist!
+                 :decider decider}
+                log-foo-action)]
+
+    (is (= [{:effect/type :log-foo
+             :state foo
+             :action log-foo-action}]
+           (get (first @!state) :effects)))
+
+    (is (= [event1 event2] result))))
+
 (deftest test-anomalies
   (let [!state (atom [])
 
