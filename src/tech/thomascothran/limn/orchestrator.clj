@@ -92,6 +92,55 @@
               {:anomaly/category :forbidden
                :personas (l/personas workflow')})))))
 
+(defn- find-data
+  [m input]
+  (let [finder       (get m :finder)
+        decider      (get m :decider)
+        data-request (get (decider input) :find)]
+    (find-and-merge finder data-request)))
+
+(defn- orchestrate-step!
+  [m input data]
+  (or (workflow-anomalies input (get m :workflow) data)
+      (let [dispatch-effects! (get m :dispatch-effects!)
+            decider           (get m :decider)
+            result            (decider input data)
+            effects           (get result :effects)
+            anomaly           (get result :anomaly/category)]
+        (when (and effects (not anomaly))
+          (dispatch-effects! effects))
+        (if anomaly
+          (dissoc result :effects :events)
+          result))))
+
+(defn- orchestrate-chain!
+  [m input initial-data-supplied? initial-data]
+  (loop [input'         input
+         data-supplied? initial-data-supplied?
+         supplied-data  initial-data
+         effects        []
+         events         []]
+    (let [data    (if data-supplied?
+                    supplied-data
+                    (find-data m input'))
+          result  (orchestrate-step! m input' data)
+          anomaly (get result :anomaly/category)]
+      (if anomaly
+        (assoc result
+               :effects effects
+               :events events)
+        (let [effects'    (into effects (get result :effects))
+              events'     (into events (get result :events))
+              next-action (get result :next-action)]
+          (if next-action
+            (recur next-action
+                   (contains? result :next-state)
+                   (get result :next-state)
+                   effects'
+                   events')
+            {:effects effects'
+             :events events'}))))))
+
 (defn orchestrate!
   "Execute effects and emit events based on business logic.
 
@@ -106,16 +155,24 @@
   query name, and the value is the options. These are passed
   to the `finder` function.
 
-  Arity 2: Declare Effects, Events, and Anomalies
-  -----------------------------------------------
+  Arity 2: Declare Effects, Events, Anomalies, and Continuations
+  ----------------------------------------------------------------
   Takes the input (event or command) and the data.
   The results of the data request are merged into a single map and
   passed as the second argument to the decider function.
 
-  Returns a map with the following keys:
-  - `:effects` - A sequence of effects to execute
-  - `:events` - The domain events to be emitted
-  - `:anomaly/category` - an anomaly, if one has occured
+  A result may contain `:next-action` to continue orchestration. If it also
+  contains `:next-state`, that value is used as the complete data for the next
+  action and its finder phase is skipped. Workflow rules are applied to every
+  action in the chain.
+
+  Returns a map with the effects and events aggregated across all actions:
+  - `:effects` - A sequence of effects executed
+  - `:events` - The domain events emitted
+  - `:anomaly/category` - an anomaly, if one has occurred
+
+  If an action produces an anomaly, orchestration stops. The returned effects
+  and events contain only work completed by earlier actions in the chain.
 
 
   Other parameters to `m`
@@ -127,29 +184,12 @@
     executes them
   "
   ([m input]
-   (let [finder             (get m :finder)
-         decider            (get m :decider)
-         data-request       (get (decider input) :find)
-         data               (find-and-merge finder data-request)]
-     (orchestrate! m input data)))
+   (orchestrate-chain! m input false nil))
   ([m input data]
-   (or (workflow-anomalies input (get m :workflow) data)
-       (let [dispatch-effects!  (get m :dispatch-effects!)
-             decider            (get m :decider)
-             result             (decider input data)
-             effects            (get result :effects)
-             events             (get result :events)
-             anomaly            (get result :anomaly/category)
-             run-effects?       (and effects (not anomaly))
-             _                  (when run-effects?
-                                  (dispatch-effects! effects))]
-         (if anomaly
-           (dissoc result :effects :events)
-           {:effects effects
-            :events events
-            :data data})))))
+   (orchestrate-chain! m input true data)))
 
-(defn execute!
+(defn ^:deprecated execute!
+  "Deprecated. Use `orchestrate!`, which supports chained actions."
   [m action]
   (let [fetch! (get m :fetch!)
         persist! (get m :persist!)

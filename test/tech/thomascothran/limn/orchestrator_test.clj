@@ -49,12 +49,6 @@
         "Should return effects")
     (is (= events (get result :events))
         "Should return events")
-    (is (= {:foo/id 1
-            :foo/status "ready"
-            :bar/id 2
-            :bar/status "closed"}
-           (get result :data))
-        "Should return the data")
     (is (= [effect] (first @!state)))))
 
 (deftest text-execute!-with-continuous-actions
@@ -109,6 +103,175 @@
            (get (first @!state) :effects)))
 
     (is (= [event1 event2] result))))
+
+(deftest test-orchestrate!-with-continuous-actions
+  (let [!finder-calls (atom [])
+        !dispatched-effects (atom [])
+
+        prepare-action {:action/name :prepare}
+        process-action {:action/name :process}
+        finish-action {:action/name :finish}
+
+        prepare-effect {:effect/type :work/prepare}
+        process-effect {:effect/type :work/process}
+        finish-effect {:effect/type :work/finish}
+
+        prepared-event {:event/type :work/prepared}
+        processed-event {:event/type :work/processed}
+        finished-event {:event/type :work/finished}
+
+        workflow (lm/make-workflow
+                  {:workflow/name "Continuous work"
+                   :workflow/actions
+                   {:prepare
+                    {:action/requires #{}
+                     :action/produces #{:work/prepared}}
+
+                    :process
+                    {:action/requires #{:work/prepared}
+                     :action/produces #{:work/processed}}
+
+                    :finish
+                    {:action/requires #{:work/processed}
+                     :action/produces #{:work/finished}}}})
+
+        finder (fn [query-name query-params]
+                 (swap! !finder-calls conj [query-name query-params])
+                 (case query-name
+                   :find-prepare {}
+                   :find-finish {:work/processed true}))
+
+        decider (fn decider
+                  ([{action-name :action/name}]
+                   (case action-name
+                     :prepare {:find {:find-prepare {}}}
+                     :process (throw (ex-info "Process state should be supplied"
+                                              {:action/name action-name}))
+                     :finish {:find {:find-finish {}}}))
+                  ([{action-name :action/name} data]
+                   (case action-name
+                     :prepare
+                     (do
+                       (assert (= {} data))
+                       {:effects [prepare-effect]
+                        :events [prepared-event]
+                        :next-action process-action
+                        :next-state {:work/prepared true}})
+
+                     :process
+                     (do
+                       (assert (= {:work/prepared true} data))
+                       {:effects [process-effect]
+                        :events [processed-event]
+                        :next-action finish-action})
+
+                     :finish
+                     (do
+                       (assert (= {:work/processed true} data))
+                       {:effects [finish-effect]
+                        :events [finished-event]}))))
+
+        result (o/orchestrate!
+                {:dispatch-effects! #(swap! !dispatched-effects conj %)
+                 :finder finder
+                 :decider decider
+                 :workflow workflow}
+                prepare-action)]
+
+    (is (= [prepare-effect process-effect finish-effect]
+           (get result :effects)))
+    (is (= [prepared-event processed-event finished-event]
+           (get result :events)))
+    (is (= [[prepare-effect] [process-effect] [finish-effect]]
+           @!dispatched-effects))
+    (is (= [[:find-prepare {}] [:find-finish {}]]
+           @!finder-calls))))
+
+(deftest test-workflow-is-enforced-for-next-action
+  (let [!decided-actions (atom [])
+        !dispatched-effects (atom [])
+
+        start-action {:action/name :start}
+        finish-action {:action/name :finish}
+        start-effect {:effect/type :work/start}
+        started-event {:event/type :work/started}
+
+        workflow (lm/make-workflow
+                  {:workflow/name "Blocked continuation"
+                   :workflow/actions
+                   {:start
+                    {:action/requires #{}
+                     :action/produces #{:work/started}}
+
+                    :unlock
+                    {:action/requires #{}
+                     :action/produces #{:work/unlocked}}
+
+                    :finish
+                    {:action/requires #{:work/unlocked}
+                     :action/produces #{:work/finished}}}})
+
+        decider (fn decider
+                  ([{action-name :action/name}]
+                   {:find {(case action-name
+                             :start :find-start
+                             :finish :find-finish)
+                           {}}})
+                  ([{action-name :action/name} _data]
+                   (swap! !decided-actions conj action-name)
+                   (case action-name
+                     :start {:effects [start-effect]
+                             :events [started-event]
+                             :next-action finish-action}
+                     :finish (throw (ex-info "Blocked action was decided"
+                                             {:action/name action-name})))))
+
+        result (o/orchestrate!
+                {:dispatch-effects! #(swap! !dispatched-effects conj %)
+                 :finder (fn [_query-name _query-params] {})
+                 :decider decider
+                 :workflow workflow}
+                start-action)]
+
+    (is (= {:anomaly/category :conflict
+            :blockers #{:unlock}
+            :effects [start-effect]
+            :events [started-event]}
+           result))
+    (is (= [:start] @!decided-actions))
+    (is (= [[start-effect]] @!dispatched-effects))))
+
+(deftest test-anomaly-in-next-action-preserves-completed-work
+  (let [first-action {:action/name :first}
+        second-action {:action/name :second}
+        first-effect {:effect/type :work/first}
+        rejected-effect {:effect/type :work/rejected}
+        first-event {:event/type :work/first-completed}
+        rejected-event {:event/type :work/rejected}
+
+        decider (fn decider
+                  ([_] {:find {}})
+                  ([{action-name :action/name} _data]
+                   (case action-name
+                     :first {:effects [first-effect]
+                             :events [first-event]
+                             :next-action second-action}
+                     :second {:anomaly/category :fault
+                              :reason :second-action-failed
+                              :effects [rejected-effect]
+                              :events [rejected-event]})))
+
+        result (o/orchestrate!
+                {:dispatch-effects! (constantly nil)
+                 :finder (fn [_query-name _query-params] {})
+                 :decider decider}
+                first-action)]
+
+    (is (= {:anomaly/category :fault
+            :reason :second-action-failed
+            :effects [first-effect]
+            :events [first-event]}
+           result))))
 
 (deftest text-execute!-with-continuous-actions-with-state
   (let [!state (atom [])
@@ -186,8 +349,11 @@
                  :finder finder
                  :decider decider}
                 {:event/type :stub})]
-    (is (= {:anomaly/category :fault} result)
-        "Should return anomaly, but not effects or events")))
+    (is (= {:anomaly/category :fault
+            :effects []
+            :events []}
+           result)
+        "Should return the anomaly with no completed work")))
 
 (def test-persona-workflow
   (lm/make-workflow
