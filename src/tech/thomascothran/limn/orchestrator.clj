@@ -188,8 +188,89 @@
   ([m input data]
    (orchestrate-chain! m input true data)))
 
+(defn adapt-single-data-request
+  "Adapt a decider whose one-argument arity returns a single data request to
+  the data-request contract used by `orchestrate!`.
+
+  The adapted decider wraps that request in the `:find` structure expected by
+  `orchestrate!`, using `::single-data-request` as its query name:
+
+  ```clojure
+  ((adapt-single-data-request decider) input)
+  ;; => {:find {::single-data-request data-request}}
+  ```
+
+  Pair it with a finder that accepts the generated query name and handles the
+  original request:
+
+  ```clojure
+  (fn [query-name data-request]
+    (assert (= ::single-data-request query-name))
+    (fetch-data data-request))
+  ```
+
+  As with any finder used by `orchestrate!`, the finder must return a map of
+  facts. The decider's two-argument arity is delegated to unchanged. This
+  function adapts only the decider; it does not adapt the finder or effect
+  dispatcher."
+  [decider]
+  (fn
+    ([input]
+     {:find {::single-data-request (decider input)}})
+    ([input data]
+     (decider input data))))
+
+(defn adapt-effects-persistence
+  "Adapt a persistence function that accepts an `:effects` map for use as an
+  `orchestrate!` `:dispatch-effects!` function.
+
+  The returned function accepts a sequence of effects, wraps it in an
+  `{:effects effects}` map, and passes that map to `persist!`. Its return value
+  is the return value of `persist!`.
+
+  This adapter handles effects only. It does not pass events, anomalies,
+  continuations, or other decider-result attributes to `persist!`."
+  [persist!]
+  (fn [effects]
+    (persist! {:effects effects})))
+
 (defn ^:deprecated execute!
-  "Deprecated. Use `orchestrate!`, which supports chained actions."
+  "Deprecated. Use `orchestrate!`, which supports chained actions and returns
+  anomalies (unlike execute!).
+
+  Migration notes
+  ---------------
+  `execute!` and `orchestrate!` do not have identical contracts:
+
+  - Replace `:fetch!` with `:finder`. The one-argument decider arity must return
+    `{:find {query-name query-params}}`; the finder is called as
+    `(finder query-name query-params)` and must return a map of facts. If the
+    decider returns one data request directly, wrap it with
+    `adapt-single-data-request` instead of changing the decider.
+  - Replace `:persist!` with `:dispatch-effects!`. It receives only the sequence
+    under `:effects`, rather than the complete decider result. If `persist!`
+    handles only effects, wrap it with `adapt-effects-persistence`. Persist or
+    publish returned events separately if the old `persist!` handled them.
+  - Read events from `:events` in the returned map instead of using the complete
+    return value as the event sequence.
+  - Check `:anomaly/category` on the returned map. On an anomaly, `:effects` and
+    `:events` contain only work completed by earlier actions in the chain; the
+    anomalous action's effects are not dispatched.
+
+  For example:
+
+  ```clojure
+  (let [result (orchestrate!
+                {:decider (adapt-single-data-request decider)
+                 :finder (fn [_query-name data-request]
+                           (fetch! data-request))
+                 :dispatch-effects!
+                 (adapt-effects-persistence persist!)}
+                action)]
+    (if (:anomaly/category result)
+      (handle-anomaly result)
+      (:events result)))
+  ```"
   [m action]
   (let [fetch! (get m :fetch!)
         persist! (get m :persist!)

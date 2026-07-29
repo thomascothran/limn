@@ -51,6 +51,40 @@
         "Should return events")
     (is (= [effect] (first @!state)))))
 
+(deftest test-adapt-single-data-request
+  (let [input        {:action/name :load-widget}
+        data-request {:widget/id 42}
+        facts        {:widget/id 42
+                      :widget/status :ready}
+        decision     {:events [{:event/type :widget/loaded}]}
+        decider      (fn
+                       ([input']
+                        (assert (= input input'))
+                        data-request)
+                       ([input' facts']
+                        (assert (= input input'))
+                        (assert (= facts facts'))
+                        decision))
+        adapted      (o/adapt-single-data-request decider)]
+    (is (= {:find {::o/single-data-request data-request}}
+           (adapted input))
+        "The single request should use the orchestrator's :find structure")
+    (is (= decision (adapted input facts))
+        "The decision arity should be delegated to unchanged")))
+
+(deftest test-adapt-effects-persistence
+  (let [!persisted (atom nil)
+        effects    [{:effect/type :widget/save
+                     :widget/id 42}]
+        persist!   (fn [result]
+                     (reset! !persisted result)
+                     :persisted)
+        dispatch!  (o/adapt-effects-persistence persist!)]
+    (is (= :persisted (dispatch! effects))
+        "The persistence function's return value should be preserved")
+    (is (= {:effects effects} @!persisted)
+        "Effects should be presented using the persistence map contract")))
+
 (deftest text-execute!-with-continuous-actions
   (let [!state (atom [])
 
